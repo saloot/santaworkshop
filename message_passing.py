@@ -95,6 +95,7 @@ for itr in range(0,max_no_optimization_itrs):
     print(calculate_total_cost(ForwardMatrix))
     # Backward step
     BackwardMatrix = np.zeros([no_families,no_days]).astype(int)
+    occupancy_count = sum(ForwardMatrix)
     for j in range(0,no_days):
         
         # Check the messages comming from neighbors
@@ -108,15 +109,24 @@ for itr in range(0,max_no_optimization_itrs):
             m_base = 20 * (min_occupancy - sum(feedback))
         
         #for i in np.nonzero(feedback)[0]:
-        for i in range(0,no_families):
-            if 1:#m == 0:
-                no_people = family_data[i,-1]
-                choices = family_data[i,1:-1]
-                try:
-                    choice = list(choices).index(j+1)
-                except:
-                    choice = -1
+        Nd = 0.0001 + occupancy_count[j]
+        Nd1 = occupancy_count[min(j+1,no_days-1)] 
+        day_diff = 0.5 + abs(Nd-Nd1)/50.
+        Ed = pow(Nd,day_diff) 
+        gradient_cost_day = day_diff * Ed * (1+(1-125/Nd)) / 400.
 
-                m = m_base -calculate_cost(choice,no_people)
-            BackwardMatrix[i,j] = m
+        for i in range(0,no_families):
+            no_people = family_data[i,-1]
+            choices = family_data[i,1:-1]
+            try:
+                choice = list(choices).index(j+1)
+            except:
+                choice = -1
+
+            m = m_base - calculate_cost(choice,no_people) - gradient_cost_day
+            if m == Inf:
+                m = 1000000
+            elif m == -Inf:
+                m = -1000000
+            BackwardMatrix[i,j] = -m
 
