@@ -73,16 +73,23 @@ for itr in range(0,max_no_optimization_itrs):
         #    pdb.set_trace()
         overall_feedback = sum(feedback) #sum(feedback > 0) - sum(feedback < 0) 
 
-        if overall_feedback > cutoff:
-            new_ind = previous_choices_inds[i] #min(previous_choices_inds[i]+1,9)
-        elif overall_feedback < -cutoff:
-            new_ind = min(previous_choices_inds[i]+1,9) #max(previous_choices_inds[i]-1,0)
-        else:
-            new_ind = previous_choices_inds[i]
+        # randomly select the node with least cost
+        choice = np.argmax(feedback)
+
+        #if overall_feedback > cutoff:
+        #    new_ind = previous_choices_inds[i] #min(previous_choices_inds[i]+1,9)
+        #elif overall_feedback < -cutoff:
+        #    new_ind = min(previous_choices_inds[i]+1,9) #max(previous_choices_inds[i]-1,0)
+        #else:
+        #    new_ind = previous_choices_inds[i]
         
-        choice = choices[new_ind]
+        #choice = choices[new_ind]
+        try:
+            new_ind = list(choices).index(choice+1)
+        except:
+            new_ind = -1    
         choices_inds[i] = new_ind
-        ForwardMatrix[i,choice-1] = no_people
+        ForwardMatrix[i,choice] = no_people
     print(sum(sum(ForwardMatrix))/100.)
 
     print(calculate_total_cost(ForwardMatrix))
@@ -94,20 +101,22 @@ for itr in range(0,max_no_optimization_itrs):
         feedback = ForwardMatrix[:,j]
 
         # Adjust the choice based on the feedback coming from constraints
-        m = 0
+        m_base = 0
         if sum(feedback) > max_occupancy:
-            m = max_occupancy - sum(feedback)
+            m_base = 2000 *(max_occupancy - sum(feedback))
         elif sum(feedback) < min_occupancy:
-            m = min_occupancy - sum(feedback)
+            m_base = 20 * (min_occupancy - sum(feedback))
         
-        for i in np.nonzero(feedback)[0]:
-            if m == 0:
+        #for i in np.nonzero(feedback)[0]:
+        for i in range(0,no_families):
+            if 1:#m == 0:
                 no_people = family_data[i,-1]
                 choices = family_data[i,1:-1]
                 try:
                     choice = list(choices).index(j+1)
                 except:
                     choice = -1
-                m = -calculate_cost(choice,no_people)
+
+                m = m_base -calculate_cost(choice,no_people)
             BackwardMatrix[i,j] = m
 
