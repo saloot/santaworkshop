@@ -172,7 +172,7 @@ for itr in range(0,max_no_optimization_itrs):
             #    choice_ind = -1
             # TODO: use Cij instead of calculate_cost()
             #Cij = calculate_cost(choice_ind,no_people)
-            Cij = C[i,j-1]
-            m = m_base - Cij  - abs(Nd - Nd+1)/2.5 + 1000*no_people /(Nd + 0.0001)
+            Cij = C[i,j]
+            m = m_base - Cij # - abs(Nd - Nd+1)/2.5 + 1000*no_people /(Nd + 0.0001)
             BackwardMatrix[i,j] = -m *(2-days_popularity_tot[j]/max(days_popularity_tot))
 
