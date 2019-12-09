@@ -106,15 +106,12 @@ for itr in range(0,max_no_optimization_itrs):
         if sum(feedback) > max_occupancy:
             m_base = 2000 *(max_occupancy - sum(feedback))
         elif sum(feedback) < min_occupancy:
-            m_base = 20 * (min_occupancy - sum(feedback))
+            m_base = 200 * (min_occupancy - sum(feedback))
         
         #for i in np.nonzero(feedback)[0]:
         Nd = 0.0001 + occupancy_count[j]
         Nd1 = occupancy_count[min(j+1,no_days-1)] 
-        day_diff = 0.5 + abs(Nd-Nd1)/50.
-        Ed = pow(Nd,day_diff) 
-        gradient_cost_day = day_diff * Ed * (1+(1-125/Nd)) / 400.
-
+        
         for i in range(0,no_families):
             no_people = family_data[i,-1]
             choices = family_data[i,1:-1]
@@ -124,9 +121,6 @@ for itr in range(0,max_no_optimization_itrs):
                 choice = -1
 
             m = m_base - calculate_cost(choice,no_people) - gradient_cost_day
-            if m == Inf:
-                m = 1000000
-            elif m == -Inf:
-                m = -1000000
+            m = max(min(m,-BIG_COST),BIG_COST)
             BackwardMatrix[i,j] = -m
 
