@@ -53,8 +53,8 @@ def calculate_total_cost(assignment_matrix):
         Nd1 = occupancy_count[min(j+1,no_days-1)] 
         cost += pow(Nd,0.5 + abs(Nd-Nd1)/50.) * max(Nd-125,0)/400.
 
-        if Nd < min_occupancy or Nd > max_occupancy:
-            cost += BIG_COST
+        #if Nd < min_occupancy or Nd > max_occupancy:
+        #    cost += BIG_COST
 
     return cost
 
@@ -72,6 +72,7 @@ cutoff_orig = 10
 max_no_optimization_itrs = 1000
 choices_inds = np.zeros([no_families,1]).astype(int)
 BackwardMatrix = np.zeros([no_families,no_days]).astype(int)
+max_cost = 100000000
 prng = RandomState(int(time.time()))
 for itr in range(0,max_no_optimization_itrs):
     ForwardMatrix = np.zeros([no_families,no_days]).astype(int)
@@ -109,11 +110,15 @@ for itr in range(0,max_no_optimization_itrs):
         #choice = choices[new_ind]
         
         # Keep new index by random
-        p = prng.randint(0,10)
-        if p >= 6:
+        p = prng.randint(0,50)
+        if p >= 48:
             choice = possible_choices[0]
+        #elif p >=17:
+        #    choice = possible_choices[1]
+        #elif p >=13:
+        #    choice = possible_choices[2]
         else:
-            q = prng.randint(0,no_days)
+            q = prng.randint(5,no_days)
             choice = possible_choices[q]#-1
             #new_ind = previous_choices_inds[i]
         
@@ -127,11 +132,15 @@ for itr in range(0,max_no_optimization_itrs):
         day_count[choice] += 1 
 
     hard_criteria = sum(sum(ForwardMatrix)>300) + sum(sum(ForwardMatrix)<125)
-    print(hard_criteria)
+    cost = calculate_total_cost(ForwardMatrix)
+    print(hard_criteria,cost)
     if hard_criteria == 0:
-        creat_submission(ForwardMatrix,str(itr))
+        
+        if cost < max_cost:
+            max_cost = cost
+            creat_submission(ForwardMatrix,str(int(cost)))
         #print(sum(ForwardMatrix))
-        print(calculate_total_cost(ForwardMatrix))
+        print(cost)
 #    if itr > 0:
 #        pdb.set_trace()
 
@@ -146,22 +155,24 @@ for itr in range(0,max_no_optimization_itrs):
         # Adjust the choice based on the feedback coming from constraints
         m_base = 0
         if sum(feedback) > max_occupancy:
-            m_base = 200 *(max_occupancy - sum(feedback))
+            m_base = .2 *(max_occupancy - sum(feedback))
         elif sum(feedback) < min_occupancy:
-            m_base = 2 * (min_occupancy - sum(feedback))
+            m_base = .2 * (min_occupancy - sum(feedback))
         
         #for i in np.nonzero(feedback)[0]:
         Nd = 0.0001 + occupancy_count[j]
         Nd1 = occupancy_count[min(j+1,no_days-1)] 
-        
+        #m_base = 0
         for i in range(0,no_families):
-            no_people = family_data[i,-1]
-            choices = family_data[i,1:-1]
-            try:
-                choice_ind = list(choices).index(j+1)
-            except:
-                choice_ind = -1
-
-            m = m_base - calculate_cost(choice_ind,no_people) + 100*no_people /(Nd + 0.0001) - abs(Nd - Nd+1)/1.5
-            BackwardMatrix[i,j] = -m *(days_popularity_tot[j]/max(days_popularity_tot))
+            #no_people = family_data[i,-1]
+            #choices = family_data[i,1:-1]
+            #try:
+            #    choice_ind = list(choices).index(j+1)
+            #except:
+            #    choice_ind = -1
+            # TODO: use Cij instead of calculate_cost()
+            #Cij = calculate_cost(choice_ind,no_people)
+            Cij = C[i,j-1]
+            m = m_base - Cij  - abs(Nd - Nd+1)/2.5 + 1000*no_people /(Nd + 0.0001)
+            BackwardMatrix[i,j] = -m *(2-days_popularity_tot[j]/max(days_popularity_tot))
 
