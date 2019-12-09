@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import os
 import csv
 import pytz
+from numpy.random import RandomState
+import time
 
 BIG_COST = 1000000
 min_occupancy = 125
@@ -54,6 +56,8 @@ def calculate_total_cost(assignment_matrix):
 cutoff_orig = 10
 max_no_optimization_itrs = 100
 choices_inds = np.zeros([no_families,1]).astype(int)
+BackwardMatrix = np.zeros([no_families,no_days]).astype(int)
+prng = RandomState(int(time.time()))
 for itr in range(0,max_no_optimization_itrs):
     ForwardMatrix = np.zeros([no_families,no_days]).astype(int)
     previous_choices_inds = choices_inds
@@ -88,11 +92,19 @@ for itr in range(0,max_no_optimization_itrs):
             new_ind = list(choices).index(choice+1)
         except:
             new_ind = -1    
+
+        # Keep new index by random
+        p = prng.randint(0,10)
+        if p < 4:
+            new_ind = previous_choices_inds[i]
         choices_inds[i] = new_ind
         ForwardMatrix[i,choice] = no_people
     print(sum(sum(ForwardMatrix))/100.)
 
     print(calculate_total_cost(ForwardMatrix))
+    if itr > 0:
+        pdb.set_trace()
+
     # Backward step
     BackwardMatrix = np.zeros([no_families,no_days]).astype(int)
     occupancy_count = sum(ForwardMatrix)
@@ -104,16 +116,19 @@ for itr in range(0,max_no_optimization_itrs):
         # Adjust the choice based on the feedback coming from constraints
         m_base = 0
         if sum(feedback) > max_occupancy:
-            m_base = 2000 *(max_occupancy - sum(feedback))
+            m_base = 10 *(max_occupancy - sum(feedback))
         elif sum(feedback) < min_occupancy:
-            m_base = 20 * (min_occupancy - sum(feedback))
+            m_base = 2 * (min_occupancy - sum(feedback))
         
         #for i in np.nonzero(feedback)[0]:
-        Nd = 0.0001 + occupancy_count[j]
-        Nd1 = occupancy_count[min(j+1,no_days-1)] 
-        day_diff = 0.5 + abs(Nd-Nd1)/50.
-        Ed = pow(Nd,day_diff) 
-        gradient_cost_day = day_diff * Ed * (1+(1-125/Nd)) / 400.
+        m_base = 0
+        Nd = occupancy_count[j] 
+        #Nd1 = occupancy_count[min(j+1,no_days-1)] 
+        #node_cost = pow(Nd,0.5 + abs(Nd-Nd1)/50.) * max(Nd-125,0)/400.
+        #node_cost = max(min(node_cost,BIG_COST),-BIG_COST)
+
+        #if Nd < min_occupancy or Nd > max_occupancy:
+        #    cost += BIG_COST
 
         for i in range(0,no_families):
             no_people = family_data[i,-1]
@@ -123,10 +138,6 @@ for itr in range(0,max_no_optimization_itrs):
             except:
                 choice = -1
 
-            m = m_base - calculate_cost(choice,no_people) - gradient_cost_day
-            if m == Inf:
-                m = 1000000
-            elif m == -Inf:
-                m = -1000000
-            BackwardMatrix[i,j] = -m
+            m = m_base - calculate_cost(choice,no_people) - 10*no_people /(Nd + 0.0001)
+            BackwardMatrix[i,j] = m
 
