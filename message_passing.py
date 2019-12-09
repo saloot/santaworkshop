@@ -4,10 +4,18 @@ import matplotlib.pyplot as plt
 import os
 import csv
 import pytz
+from numpy.random import RandomState
+import time
+import pdb
 
 BIG_COST = 1000000
 min_occupancy = 125
 max_occupancy = 300
+
+import math
+
+def inv_sigmoid(x,alpha,beta):
+  return 1 / (alpha + math.exp(x-beta))
 
 def calculate_total_cost(assignment_matrix):
     """
@@ -50,10 +58,21 @@ def calculate_total_cost(assignment_matrix):
 
     return cost
 
+days_popularity = np.zeros([no_days,10])
+for i in range(0,no_families):
+    choices = family_data[i,1:-1]
+    no_people = family_data[i,-1]
+    for itr in range(0,len(choices)):
+        days_popularity[choices[itr]-1,itr] += no_people
+
+days_popularity_tot = sum(days_popularity.T)
+
 
 cutoff_orig = 10
-max_no_optimization_itrs = 100
+max_no_optimization_itrs = 1000
 choices_inds = np.zeros([no_families,1]).astype(int)
+BackwardMatrix = np.zeros([no_families,no_days]).astype(int)
+prng = RandomState(int(time.time()))
 for itr in range(0,max_no_optimization_itrs):
     ForwardMatrix = np.zeros([no_families,no_days]).astype(int)
     previous_choices_inds = choices_inds
@@ -61,12 +80,15 @@ for itr in range(0,max_no_optimization_itrs):
 
     cutoff = cutoff_orig/(1.+itr)
     # Forward step: people send their schedule to the constraints
-    for i in range(0,no_families):
+    family_inds = np.random.permutation(no_families)
+    day_count = np.zeros([no_days,1]).astype(int)
+    zero_vec = np.zeros([no_days,1])
+    for i in family_inds:
         choices = family_data[i,1:-1]
         no_people = family_data[i,-1]
         
         # Check the messages comming from neighbors
-        feedback = BackwardMatrix[i,:]
+        feedback = np.reshape(BackwardMatrix[i,:],[no_days,1])
 
         # Adjust the choice based on the feedback coming from constraints
         #if itr > 0:
@@ -74,7 +96,8 @@ for itr in range(0,max_no_optimization_itrs):
         overall_feedback = sum(feedback) #sum(feedback > 0) - sum(feedback < 0) 
 
         # randomly select the node with least cost
-        choice = np.argmax(feedback)
+        feedback = np.multiply(1-day_count/300.,feedback)
+        possible_choices = np.argsort(feedback.ravel())#[0:10]
 
         #if overall_feedback > cutoff:
         #    new_ind = previous_choices_inds[i] #min(previous_choices_inds[i]+1,9)
@@ -84,15 +107,34 @@ for itr in range(0,max_no_optimization_itrs):
         #    new_ind = previous_choices_inds[i]
         
         #choice = choices[new_ind]
+        
+        # Keep new index by random
+        p = prng.randint(0,10)
+        if p >= 6:
+            choice = possible_choices[0]
+        else:
+            q = prng.randint(0,no_days)
+            choice = possible_choices[q]#-1
+            #new_ind = previous_choices_inds[i]
+        
         try:
             new_ind = list(choices).index(choice+1)
         except:
             new_ind = -1    
+
         choices_inds[i] = new_ind
         ForwardMatrix[i,choice] = no_people
-    print(sum(sum(ForwardMatrix))/100.)
+        day_count[choice] += 1 
 
-    print(calculate_total_cost(ForwardMatrix))
+    hard_criteria = sum(sum(ForwardMatrix)>300) + sum(sum(ForwardMatrix)<125)
+    print(hard_criteria)
+    if hard_criteria == 0:
+        creat_submission(ForwardMatrix,str(itr))
+        #print(sum(ForwardMatrix))
+        print(calculate_total_cost(ForwardMatrix))
+#    if itr > 0:
+#        pdb.set_trace()
+
     # Backward step
     BackwardMatrix = np.zeros([no_families,no_days]).astype(int)
     occupancy_count = sum(ForwardMatrix)
@@ -104,9 +146,9 @@ for itr in range(0,max_no_optimization_itrs):
         # Adjust the choice based on the feedback coming from constraints
         m_base = 0
         if sum(feedback) > max_occupancy:
-            m_base = 2000 *(max_occupancy - sum(feedback))
+            m_base = 200 *(max_occupancy - sum(feedback))
         elif sum(feedback) < min_occupancy:
-            m_base = 200 * (min_occupancy - sum(feedback))
+            m_base = 2 * (min_occupancy - sum(feedback))
         
         #for i in np.nonzero(feedback)[0]:
         Nd = 0.0001 + occupancy_count[j]
@@ -116,11 +158,10 @@ for itr in range(0,max_no_optimization_itrs):
             no_people = family_data[i,-1]
             choices = family_data[i,1:-1]
             try:
-                choice = list(choices).index(j+1)
+                choice_ind = list(choices).index(j+1)
             except:
-                choice = -1
+                choice_ind = -1
 
-            m = m_base - calculate_cost(choice,no_people) - gradient_cost_day
-            m = max(min(m,-BIG_COST),BIG_COST)
-            BackwardMatrix[i,j] = -m
+            m = m_base - calculate_cost(choice_ind,no_people) + 100*no_people /(Nd + 0.0001) - abs(Nd - Nd+1)/1.5
+            BackwardMatrix[i,j] = -m *(days_popularity_tot[j]/max(days_popularity_tot))
 
