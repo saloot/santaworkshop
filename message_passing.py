@@ -58,6 +58,14 @@ def calculate_total_cost(assignment_matrix):
 
     return cost
 
+def cost_node(Nd,Nd1):
+    if Nd < min_occupancy:
+        return -BIG_COST
+    elif Nd > max_occupancy:
+        return BIG_COST
+    else:
+        return pow(Nd,0.5 + abs(Nd-Nd1)/50.) * max(Nd-125,0)/400.
+
 days_popularity = np.zeros([no_days,10])
 for i in range(0,no_families):
     choices = family_data[i,1:-1]
@@ -97,7 +105,8 @@ for itr in range(0,max_no_optimization_itrs):
         overall_feedback = sum(feedback) #sum(feedback > 0) - sum(feedback < 0) 
 
         # randomly select the node with least cost
-        feedback = np.multiply(1-day_count/300.,feedback)
+        feedback = np.multiply(day_count/300.-1,feedback)
+        #feedback = np.multiply(day_count/135.-1,feedback)
         possible_choices = np.argsort(feedback.ravel())#[0:10]
 
         #if overall_feedback > cutoff:
@@ -110,15 +119,18 @@ for itr in range(0,max_no_optimization_itrs):
         #choice = choices[new_ind]
         
         # Keep new index by random
-        p = prng.randint(0,50)
-        if p >= 48:
+        p = prng.randint(0,1000)
+        if p >= 800:
             choice = possible_choices[0]
-        #elif p >=17:
+        #elif p >=85:
         #    choice = possible_choices[1]
-        #elif p >=13:
+        #elif p >=80:
         #    choice = possible_choices[2]
+        elif p >= 700:
+            q = prng.randint(1,10)
+            choice = choices[q]-1
         else:
-            q = prng.randint(5,no_days)
+            q = prng.randint(1,no_days)
             choice = possible_choices[q]#-1
             #new_ind = previous_choices_inds[i]
         
@@ -129,8 +141,11 @@ for itr in range(0,max_no_optimization_itrs):
 
         choices_inds[i] = new_ind
         ForwardMatrix[i,choice] = no_people
-        day_count[choice] += 1 
+        day_count[choice] += no_people
+        #if day_count[choice]>301:
+        #    pdb.set_trace()
 
+    print(day_count.std())
     hard_criteria = sum(sum(ForwardMatrix)>300) + sum(sum(ForwardMatrix)<125)
     cost = calculate_total_cost(ForwardMatrix)
     print(hard_criteria,cost)
@@ -147,6 +162,7 @@ for itr in range(0,max_no_optimization_itrs):
     # Backward step
     BackwardMatrix = np.zeros([no_families,no_days]).astype(int)
     occupancy_count = sum(ForwardMatrix)
+    occupancy_count_mean = occupancy_count.mean()
     for j in range(0,no_days):
         
         # Check the messages comming from neighbors
@@ -155,17 +171,17 @@ for itr in range(0,max_no_optimization_itrs):
         # Adjust the choice based on the feedback coming from constraints
         m_base = 0
         if sum(feedback) > max_occupancy:
-            m_base = .2 *(max_occupancy - sum(feedback))
+            m_base = .5 *(max_occupancy - sum(feedback))
         elif sum(feedback) < min_occupancy:
             m_base = .2 * (min_occupancy - sum(feedback))
         
         #for i in np.nonzero(feedback)[0]:
         Nd = 0.0001 + occupancy_count[j]
         Nd1 = occupancy_count[min(j+1,no_days-1)] 
-        #m_base = 0
+        m_base = 0
         for i in range(0,no_families):
-            #no_people = family_data[i,-1]
-            #choices = family_data[i,1:-1]
+            no_people = family_data[i,-1]
+            choices = family_data[i,1:-1]
             #try:
             #    choice_ind = list(choices).index(j+1)
             #except:
@@ -173,6 +189,11 @@ for itr in range(0,max_no_optimization_itrs):
             # TODO: use Cij instead of calculate_cost()
             #Cij = calculate_cost(choice_ind,no_people)
             Cij = C[i,j]
-            m = m_base - Cij # - abs(Nd - Nd+1)/2.5 + 1000*no_people /(Nd + 0.0001)
-            BackwardMatrix[i,j] = -m *(2-days_popularity_tot[j]/max(days_popularity_tot))
+            #if feedback[i] != 0:
+            #    cost_diff = cost_node(Nd,Nd1) - cost_node(Nd-no_people,Nd1)
+            #else:
+            #    cost_diff = cost_node(Nd+no_people,Nd1) - cost_node(Nd,Nd1)
+            #cost_diff = min(max(cost_diff,-BIG_COST),BIG_COST)
 
+            #m = m_base - Cij - abs(Nd - Nd+1)/2.5 + 1000*no_people /(Nd + 0.0001)
+            BackwardMatrix[i,j] =  Cij + no_people * (Nd - occupancy_count_mean)/.5 + 20 * math.log(1+Nd)# *(2-days_popularity_tot[j]/max(days_popularity_tot))
