@@ -63,8 +63,8 @@ print(calculate_total_cost(ForwardMatrix))
 
 # Row mathcing
 ForwardMatrix = np.zeros([no_families,no_days]).astype(int)
-min_occupancy = 200
-max_occupancy = 220
+min_occupancy = 190
+max_occupancy = 230
 
 prng = RandomState(int(time.time()))
 cost_matrix = copy.deepcopy(C)
@@ -107,22 +107,26 @@ for itr in range(0,max_no_optimization_itrs):
                 
 
             assigned_ind = current_day
-            cost_max = C[ind,current_day] + cost_nodes[current_day]
-            for j in range(0,no_days):
-                if j == current_day:
-                    continue
+            
+            if 1:
+                cost_max = C[ind,current_day] + cost_nodes[current_day]
+                for j in range(0,no_days):
+                    if j == current_day:
+                        continue
 
-                if day_count[j] + no_people > max_occupancy:
-                    costs_new[j] = BIG_COST
-                else:
-                    Nd = day_count[j] + no_people
-                    Nd1 = day_count[min(j+1,no_days-1)] 
-                    costs_new[j] = C[ind,j] + cost_node(Nd,Nd1)
+                    if day_count[j] + no_people > max_occupancy:
+                        costs_new[j] = BIG_COST
+                    else:
+                        Nd = day_count[j] + no_people
+                        Nd1 = day_count[min(j+1,no_days-1)] 
+                        costs_new[j] = C[ind,j] + cost_node(Nd,Nd1)
 
-                if cost_after_leaving + costs_new[j] - cost_nodes[j]< cost_max:
-                    assigned_ind = j
-                    cost_max = cost_after_leaving + costs_new[j] - cost_nodes[j]
-                    #break
+                    if cost_after_leaving + costs_new[j] - cost_nodes[j]< cost_max:
+                        assigned_ind = j
+                        cost_max = cost_after_leaving + costs_new[j] - cost_nodes[j]
+                        p = prng.randint(0,1000)
+                        if p > 800:
+                            break
         else:
             for j in range(0,no_days):
                 if day_count[j] + no_people > max_occupancy:
