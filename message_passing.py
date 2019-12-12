@@ -59,12 +59,12 @@ def calculate_total_cost(assignment_matrix):
     return cost
 
 def cost_node(Nd,Nd1):
-    if Nd < min_occupancy:
-        return -BIG_COST
-    elif Nd > max_occupancy:
+    #if Nd < 125:
+    #    return -BIG_COST
+    if Nd > 300:
         return BIG_COST
     else:
-        return pow(Nd,0.5 + abs(Nd-Nd1)/50.) * max(Nd-125,0)/400.
+        return pow(Nd,0.5 + abs(Nd-Nd1)/50.) * (Nd-125)/400.
 
 days_popularity = np.zeros([no_days,10])
 for i in range(0,no_families):
