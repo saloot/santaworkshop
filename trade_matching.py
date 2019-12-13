@@ -63,8 +63,6 @@ print(calculate_total_cost(ForwardMatrix))
 
 # Row mathcing
 ForwardMatrix = np.zeros([no_families,no_days]).astype(int)
-min_occupancy = 190
-max_occupancy = 230
 
 prng = RandomState(int(time.time()))
 cost_matrix = copy.deepcopy(C)
@@ -80,7 +78,10 @@ assigned_days = np.zeros(no_families).astype(int)
 day_count = np.zeros(no_days).astype(int)
 cost_nodes = np.zeros(no_days)
 max_cost_tot = 1000000000
-for itr in range(0,max_no_optimization_itrs):
+min_occupancy = 190
+max_occupancy = 230
+
+for itr in range(1,max_no_optimization_itrs):
     family_inds = np.random.permutation(no_families)
     #
     #ForwardMatrix = np.zeros([no_families,no_days]).astype(int)
@@ -121,11 +122,16 @@ for itr in range(0,max_no_optimization_itrs):
                         Nd1 = day_count[min(j+1,no_days-1)] 
                         costs_new[j] = C[ind,j] + cost_node(Nd,Nd1)
 
-                    if cost_after_leaving + costs_new[j] - cost_nodes[j]< cost_max:
+                    Nd0 = day_count[max(j-1,0)] 
+                    Nd02 = day_count[max(current_day-1,0)] 
+                    Ndc = day_count[current_day]  - no_people 
+
+                    #if cost_after_leaving + costs_new[j] - cost_nodes[j] + cost_node(Nd,Nd0) + cost_node(Ndc,Nd02) - cost_nodes[max(current_day-1,0)] - cost_nodes[max(j-1,0)]< cost_max:
+                    if cost_after_leaving + costs_new[j] - cost_nodes[j] < cost_max:
                         assigned_ind = j
                         cost_max = cost_after_leaving + costs_new[j] - cost_nodes[j]
                         p = prng.randint(0,1000)
-                        if p > 800:
+                        if p > 990:
                             break
         else:
             for j in range(0,no_days):
@@ -183,6 +189,207 @@ for itr in range(0,max_no_optimization_itrs):
         #print(sum(ForwardMatrix))
         print(cost)
 
+
+min_occupancy = 130
+max_occupancy = 296
+
+for itr in range(1,max_no_optimization_itrs):
+    # Trade based on days
+
+    day_inds = np.random.permutation(no_days)
+    #day_inds = np.argsort(day_count)
+    for j in range(no_days-1,-1,-1):
+        day = day_inds[j]
+
+        # Pick another day to trade
+        other_day = prng.randint(0,no_days)
+        if other_day == day:
+            continue
+
+        assigned_families_day = np.nonzero(ForwardMatrix[:,day])[0]
+        assigned_families_other_day = np.nonzero(ForwardMatrix[:,other_day])[0]
+
+        cost_diff_min = 0
+        trade_family_1 = None
+        trade_family_2 = None
+        for family_1 in assigned_families_day:
+            no_people_1 = family_data[family_1,-1]
+            for family_2 in assigned_families_other_day:
+                if family_1 == family_2:
+                    continue
+                no_people_2 = family_data[family_2,-1]
+
+                current_cost_1 = cost_nodes[day] + C[family_1,day]
+                current_cost_2 = cost_nodes[other_day] + C[family_2,other_day]
+
+                # Calculate new cost of day
+                Nd = day_count[day] - no_people_1 + no_people_2
+                Nd1 = day_count[min(day+1,no_days-1)] 
+                if Nd < min_occupancy:
+                    cc = BIG_COST 
+                else:
+                    cc = cost_node(Nd,Nd1)
+
+                    
+                new_cost_1 = cc + C[family_2,day]
+
+                # Calculate new cost of other day
+                Nd = day_count[other_day] - no_people_2 + no_people_1
+                Nd1 = day_count[min(other_day+1,no_days-1)] 
+                if Nd < min_occupancy:
+                    cc = BIG_COST 
+                else:
+                    cc = cost_node(Nd,Nd1)
+                new_cost_2 = cc + C[family_1,other_day]
+
+                
+
+                cost_diff = new_cost_2 + new_cost_1 - current_cost_1 - current_cost_2
+                if cost_diff < cost_diff_min:
+                    cost_diff_min = cost_diff
+                    trade_family_1 = family_1
+                    trade_family_2 = family_2
+                    #print(family_1,family_2,cost_diff)
+
+        # Trade only if it worth it
+        if cost_diff_min < 0:
+            #pdb.set_trace()
+            no_people_1 = family_data[trade_family_1,-1]
+            no_people_2 = family_data[trade_family_2,-1]
+            ForwardMatrix[trade_family_1,day] = 0
+            ForwardMatrix[trade_family_1,other_day] = no_people_1
+
+            ForwardMatrix[trade_family_2,other_day] = 0
+            ForwardMatrix[trade_family_2,day] = no_people_2
+
+            day_count[day] += no_people_2 - no_people_1
+            day_count[other_day] += no_people_1 - no_people_2
+
+            #if day_count.mean() != 210.03:
+            #    pdb.set_trace()
+
+            Nd = day_count[day]
+            Nd1 = day_count[min(day+1,no_days-1)] 
+            cost_nodes[day] = cost_node(Nd,Nd1)
+
+            Nd = day_count[other_day]
+            Nd1 = day_count[min(other_day+1,no_days-1)] 
+            cost_nodes[other_day] = cost_node(Nd,Nd1)
+
+
+    hard_criteria = sum(sum(ForwardMatrix)>300) + sum(sum(ForwardMatrix)<125)
+    cost = calculate_total_cost(ForwardMatrix)
+    print(hard_criteria,cost,day_count.std(),day_count.min(),day_count.max())
+    if hard_criteria == 0:
+        if cost < max_cost_tot:
+            max_cost_tot = cost
+            creat_submission(ForwardMatrix,str(int(cost)))
+
+    #
+    #ForwardMatrix = np.zeros([no_families,no_days]).astype(int)
+    #cost_matrix = C
+    
+    for i in range(0,no_families):
+        max_cost = 100000000
+        ind = family_inds[i]
+        choices = family_data[ind,1:-1]
+        no_people = family_data[ind,-1]
+
+        costs = cost_matrix[ind,:]
+        costs_new =costs
+        if itr > 0:
+            #current_day = np.nonzero(ForwardMatrix[ind,:])[0][0]
+            current_day = assigned_days[ind]
+            #pdb.set_trace()
+            Nd = day_count[current_day] - no_people
+            Nd1 = day_count[min(current_day+1,no_days-1)] 
+            if Nd < min_occupancy:
+                cost_after_leaving = BIG_COST 
+            else:
+                cost_after_leaving = cost_node(Nd,Nd1)
+                
+
+            assigned_ind = current_day
+            
+            if 1:
+                cost_max = C[ind,current_day] + cost_nodes[current_day]
+                for j in range(0,no_days):
+                    if j == current_day:
+                        continue
+
+                    if day_count[j] + no_people > max_occupancy:
+                        costs_new[j] = BIG_COST
+                    else:
+                        Nd = day_count[j] + no_people
+                        Nd1 = day_count[min(j+1,no_days-1)] 
+                        costs_new[j] = C[ind,j] + cost_node(Nd,Nd1)
+
+                    Nd0 = day_count[max(j-1,0)] 
+                    Nd02 = day_count[max(current_day-1,0)] 
+                    Ndc = day_count[current_day]  - no_people 
+
+                    #if cost_after_leaving + costs_new[j] - cost_nodes[j] + cost_node(Nd,Nd0) + cost_node(Ndc,Nd02) - cost_nodes[max(current_day-1,0)] - cost_nodes[max(j-1,0)]< cost_max:
+                    if cost_after_leaving + costs_new[j] - cost_nodes[j] < cost_max:
+                        assigned_ind = j
+                        cost_max = cost_after_leaving + costs_new[j] - cost_nodes[j]
+                        p = prng.randint(0,1000)
+                        if p > 990:
+                            break
+        else:
+            for j in range(0,no_days):
+                if day_count[j] + no_people > max_occupancy:
+                    costs_new[j] = BIG_COST
+                else:
+                    Nd = day_count[j] + no_people
+                    Nd1 = day_count[min(j+1,no_days-1)] 
+                    costs_new[j] = C[ind,j] + cost_node(Nd,Nd1)
+
+                if costs_new[j] < max_cost:
+                    assigned_ind = j
+                    max_cost = costs_new[j]
+
+            #pdb.set_trace()
+
+                
+            #for day in possible_choices:
+            #    if day_count[day] + no_people <= min_occupancy:
+            #        assigned_ind = day
+            #        break
+
+            #if not assigned_ind:
+            #    for day in possible_choices:
+            #        if day_count[day] + no_people <= max_occupancy:
+            #            assigned_ind = day 
+            #            break
+
+        
+        ForwardMatrix[ind,assigned_ind] = no_people
+        
+        day_count[assigned_ind] += no_people
+        assigned_days[ind] = assigned_ind
+        if itr > 0:
+            day_count[current_day] -= no_people
+            if  current_day != assigned_ind:
+                ForwardMatrix[ind,current_day] = 0
+
+    for j in range(0,no_days):
+        Nd = day_count[j]
+        Nd1 = day_count[min(j+1,no_days-1)] 
+
+        cost_nodes[j] = cost_node(Nd,Nd1)
+
+                
+    hard_criteria = sum(sum(ForwardMatrix)>300) + sum(sum(ForwardMatrix)<125)
+    cost = calculate_total_cost(ForwardMatrix)
+    print(hard_criteria,cost)
+    #if itr > 0:
+    #    pdb.set_trace()
+    if hard_criteria == 0:
+        if cost < max_cost_tot:
+            max_cost_tot = cost
+            creat_submission(ForwardMatrix,str(int(cost)))
+        #print(sum(ForwardMatrix))
+        print(cost)
     
 
 day_count_opt = np.zeros([no_days])
